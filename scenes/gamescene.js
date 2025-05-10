@@ -5,17 +5,14 @@ export default class Game extends Phaser.Scene {
   }
 
   generarFigura() {
-    // Probabilidades configurables (más repeticiones = más probabilidad)
     const bolsa = [
-      "triangulo", "triangulo", "triangulo",     // 3/20
-      "cuadrado", "cuadrado", "cuadrado",     // 3/20
-      "diamante", "diamante",               // 2/20
-      "bomba"                                 // 1/20 → ajustalo como quieras
+      "cuadrado", "cuadrado", "cuadrado", "cuadrado",
+      "triangulo", "triangulo", "triangulo",
+      "diamante", "diamante",
+      "bomba"
     ];
 
     const tipo = Phaser.Utils.Array.GetRandom(bolsa);
-
-    // Posición aleatoria en eje X
     const x = Phaser.Math.Between(50, this.cameras.main.width - 50);
     const figura = this.figuras.create(x, 0, tipo);
 
@@ -28,34 +25,34 @@ export default class Game extends Phaser.Scene {
         figura.setBounce(0.6);
         figura.valor = 20;
         break;
-      case "cuadrado":
-        figura.setDisplaySize(40, 40);
-        figura.setBounce(0.4);
-        figura.valor = 10;
-        break;
       case "triangulo":
         figura.setDisplaySize(40, 40);
         figura.setBounce(0.5);
         figura.valor = 15;
         break;
+      case "cuadrado":
+        figura.setDisplaySize(40, 40);
+        figura.setBounce(0.4);
+        figura.valor = 10;
+        break;
       case "bomba":
         figura.setDisplaySize(65, 60);
         figura.setBounce(0.4);
-        figura.valor = -10;
+        figura.valor = -15;
         break;
     }
 
     figura.setVelocityX(Phaser.Math.Between(-100, 100));
-    figura.setDragX(1000); // frena después de caer
+    figura.setDragX(1000);
   }
 
   perderPuntos(figura) {
-  if (figura.tipoFigura !== "bomba" && figura.valor > 0) {
-    figura.valor -= 5;
-    if (figura.valor <= 0) {
-      figura.disableBody(true, true);
+    if (figura.tipoFigura !== "bomba" && figura.valor > 0) {
+      figura.valor -= 5;
+      if (figura.valor <= 0) {
+        figura.disableBody(true, true);
+      }
     }
-   }
   }
 
   recolectarFigura(player, figura) {
@@ -64,22 +61,46 @@ export default class Game extends Phaser.Scene {
     if (this.score < 0) {
       this.score = 0;
       this.scoreText.setText(`Score: ${this.score}`);
-      this.triggerGameOver();
+      this.triggerGameOver(false); // Derrota
       return;
     }
 
-    figura.disableBody(true, true);
     this.scoreText.setText(`Score: ${this.score}`);
+    figura.disableBody(true, true);
+
+    if (this.score >= 100) {
+      this.triggerGameOver(true); // Victoria
+    }
   }
 
-  triggerGameOver() {
+  triggerGameOver(gano = false) {
     if (this.gameOver) return;
     this.gameOver = true;
-    this.add.image(this.cameras.main.centerX, this.cameras.main.centerY, "gameover").setDisplaySize(350, 100);
+
     this.physics.pause();
     this.player.setTint(0xff0000);
-    this.timerEvent.remove();            // Detenemos el temporizador
-    this.eventoGenerador.remove();      // Detenemos generación de figuras
+
+    if (this.timerEvent) this.timerEvent.remove();
+    if (this.eventoGenerador) this.eventoGenerador.remove();
+
+    // Fondo
+    this.add.image(this.cameras.main.centerX, this.cameras.main.centerY, "resultado").setDisplaySize(800, 600);
+
+    // Texto central (imagen)
+    const key = gano ? "victoria" : "gameover";
+    this.add.image(this.cameras.main.centerX, 200, key).setDisplaySize(350, 100);
+
+    // Puntaje
+    this.add.text(this.cameras.main.centerX, 350, `Puntaje final: ${this.score}`, {
+      fontSize: "36px",
+      color: "#000"
+    }).setOrigin(0.5);
+
+    // Mensaje de reinicio
+    this.add.text(this.cameras.main.centerX, 450, "Presiona R para reiniciar", {
+      fontSize: "28px",
+      color: "#000"
+    }).setOrigin(0.5);
   }
 
   preload() {
@@ -91,19 +112,18 @@ export default class Game extends Phaser.Scene {
     this.load.image("triangulo", "./public/Triangulo.png");
     this.load.image("barrera", "./public/Barrera.png");
     this.load.image("gameover", "./public/Gameover.png");
+    this.load.image("victoria", "./public/Victoria.png");
+    this.load.image("resultado", "./public/Resultado.jpg"); // <- corregido a .jpg
     this.load.image("bomba", "./public/Bomba.png");
   }
 
   create() {
-    // Centrar el fondo
     this.add.image(this.cameras.main.centerX, this.cameras.main.centerY, "fondo").setDisplaySize(800, 600);
     this.physics.world.setBounds(0, 0, 800, 600);
 
     this.platforms = this.physics.add.staticGroup();
-    // Centrar la plataforma
     this.platforms.create(this.cameras.main.centerX, 568, "plataforma").setScale(2).refreshBody();
 
-    // Centrar al jugador
     this.player = this.physics.add.sprite(this.cameras.main.centerX, 500, "personaje");
     this.player.setDisplaySize(70, 70);
     this.player.setBounce(0.7);
@@ -121,37 +141,31 @@ export default class Game extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.figuras, this.recolectarFigura, null, this);
 
     this.countdown = 30;
-    // Centrar el texto
-    this.timerText = this.add.text(this.cameras.main.centerX + 300, 16, `Time: ${this.countdown}`, {
+    this.score = 0;
+    this.gameOver = false;
+
+    this.scoreText = this.add.text(16, 16, `Score: ${this.score}`, {
+      fontSize: "32px",
+      fill: "#000",
+    });
+
+    this.timerText = this.add.text(this.cameras.main.width - 16, 16, `Time: ${this.countdown}`, {
       fontSize: '32px',
       fill: '#000'
     }).setOrigin(1, 0);
 
-    this.time.addEvent({
+    this.timerEvent = this.time.addEvent({
       delay: 1000,
       callback: () => {
         if (this.gameOver) return;
         this.countdown--;
         this.timerText.setText(`Time: ${this.countdown}`);
         if (this.countdown <= 0) {
-          this.triggerGameOver();
+          this.triggerGameOver(false); // Tiempo agotado = derrota
         }
       },
       callbackScope: this,
       loop: true
-    });
-
-    this.input.keyboard.on('keydown-R', () => {
-      this.scene.restart();
-    });
-
-    this.score = 0;
-    this.gameOver = false;
-
-    // Centrar el texto de puntuación
-    this.scoreText = this.add.text(this.cameras.main.centerX - 300, 16, `Score: ${this.score}`, {
-      fontSize: "32px",
-      fill: "#000",
     });
 
     this.input.keyboard.on('keydown-R', () => {
@@ -169,10 +183,10 @@ export default class Game extends Phaser.Scene {
     this.physics.add.collider(this.player, this.barrera2);
 
     this.eventoGenerador = this.time.addEvent({
-    delay: 1000, // cada 1 segundo
-    callback: this.generarFigura,
-    callbackScope: this,
-    loop: true,
+      delay: 1000,
+      callback: this.generarFigura,
+      callbackScope: this,
+      loop: true,
     });
   }
 
@@ -186,15 +200,6 @@ export default class Game extends Phaser.Scene {
     barrera.body.allowGravity = false;
     barrera.body.setSize(barrera.width, barrera.height);
     return barrera;
-  }
-
-  perderPuntos(figura) {
-    if (figura.valor > 0) {
-      figura.valor -= 5;
-      if (figura.valor <= 0) {
-        figura.disableBody(true, true);
-      }
-    }
   }
 
   update() {
